@@ -1,0 +1,52 @@
+on:
+  push:
+    branches:
+      - main
+      - test
+      - dev
+
+jobs:
+  terraform:
+    name: "Terraform"
+    runs-on: ubuntu-latest
+    env:
+      PROJECT_NAME: ${{ github.event.repository.name }}
+      ENVIRONMENT: ${{ github.ref_name }}
+      WORKSPACE_NAME: '${{ github.event.repository.name }}-${{ github.ref_name }}'
+
+    defaults:
+      run:
+        working-directory: ./infra
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v1
+        with:
+          # terraform_version: 0.13.0:
+          cli_config_credentials_hostname: 'app.terraform.io'
+          cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
+
+      - name: Terraform Init
+        id: init
+        run: terraform init
+        env: 
+          TF_WORKSPACE: ${{env.WORKSPACE_NAME}}
+
+      - name: Terraform Workspace
+        id: workspace
+        run: terraform workspace select ${{env.WORKSPACE_NAME}}
+      
+      - name: Terraform Validate
+        id: validate
+        run: terraform validate -no-color
+
+      - name: Terraform Plan
+        id: plan
+        run: terraform plan -no-color
+        continue-on-error: true
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve || terraform destroy -auto-approve
